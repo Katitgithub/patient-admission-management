@@ -2,6 +2,39 @@
 
 A responsive React application and Django REST API for managing hospital patient admissions. The API is Python/Django; Node.js is used only for React frontend tooling, not as the backend.
 
+## How the code is organized
+
+Backend:
+
+- `patients/models.py` describes the Patient table and its allowed dropdown choices.
+- `patients/serializers.py` turns patient data into JSON and checks incoming values.
+- `patients/views.py` handles API requests in small, explicit functions.
+- `patients/urls.py` connects each API URL to its view function.
+- `patient_admissions/settings.py` contains Django setup, database, and CORS settings.
+
+Frontend:
+
+- `frontend/src/App.jsx` holds the page state and connects the form and table.
+- `frontend/src/PatientForm.jsx` displays the form and checks it before saving.
+- `frontend/src/PatientTable.jsx` displays records, search, filters, and row actions.
+- `frontend/src/api.js` contains the functions that call Django.
+- `frontend/src/validation.js` contains the browser-side form checks.
+- `frontend/src/styles.css` controls the page layout and mobile styles.
+
+The basic request flow is: React form → `api.js` → Django URL → view → serializer → database. The serializer checks the data again on the server before Django saves it.
+
+## Simple interview explanation
+
+You can describe one create request like this:
+
+1. The user fills in the React form. `validation.js` catches simple mistakes before sending anything.
+2. `api.js` sends the form as JSON to `POST /api/patients/`.
+3. Django matches that URL in `patients/urls.py` and runs `patient_list` in `patients/views.py`.
+4. `PatientSerializer` checks the values again. If they are valid, `serializer.save()` stores the row through the `Patient` model; otherwise Django returns field errors as JSON.
+5. React refreshes the patient list and shows the saved record.
+
+The backend validates too because browser checks can be bypassed. The database is SQLite on a developer's computer and PostgreSQL on the deployed app.
+
 ## Features
 
 - Add, list, edit, and delete patient records (deletion asks for confirmation).

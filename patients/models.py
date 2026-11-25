@@ -2,9 +2,23 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 # Replace these examples with the actual options you want in your demo.
-WARD_CHOICES = [(v, v) for v in ["General", "ICU", "Maternity", "Pediatrics"]]
-DEPARTMENT_CHOICES = [(v, v) for v in ["Cardiology", "General Medicine", "Neurology", "Orthopedics"]]
-DOCTOR_CHOICES = [(v, v) for v in ["Dr. Asha Rao", "Dr. Kiran Shah", "Dr. Meera Nair"]]
+WARD_CHOICES = [
+    ("General", "General"),
+    ("ICU", "ICU"),
+    ("Maternity", "Maternity"),
+    ("Pediatrics", "Pediatrics"),
+]
+DEPARTMENT_CHOICES = [
+    ("Cardiology", "Cardiology"),
+    ("General Medicine", "General Medicine"),
+    ("Neurology", "Neurology"),
+    ("Orthopedics", "Orthopedics"),
+]
+DOCTOR_CHOICES = [
+    ("Dr. Asha Rao", "Dr. Asha Rao"),
+    ("Dr. Kiran Shah", "Dr. Kiran Shah"),
+    ("Dr. Meera Nair", "Dr. Meera Nair"),
+]
 
 
 class Patient(models.Model):
