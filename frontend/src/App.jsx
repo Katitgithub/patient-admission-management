@@ -1,165 +1,169 @@
 import { useEffect, useState } from "react";
-import { Activity, Bed, CirclePlus, Users, X } from "lucide-react";
 import { deletePatient, dischargePatient, getOptions, getPatients, savePatient } from "./api.js";
 import PatientForm from "./PatientForm.jsx";
 import PatientTable from "./PatientTable.jsx";
+import { validatePatient } from "./validation.js";
+import "./styles.css";
 
-const emptyOptions = { genders: [], wards: [], departments: [], doctors: [] };
+const emptyForm = {
+  name: "",
+  age: "",
+  gender: "",
+  ward: "",
+  department: "",
+  doctor: "",
+  admission_date: "",
+  status: "Admitted",
+};
+
 const emptyFilters = { search: "", ward: "", department: "", doctor: "" };
+const emptyOptions = { genders: [], wards: [], departments: [], doctors: [] };
 
-function getErrorMessage(error) {
-  if (typeof error === "string") return error;
-  if (error && error.detail) return error.detail;
-  return "Something went wrong. Please try again.";
-}
-
-export default function App() {
+function App() {
   const [patients, setPatients] = useState([]);
   const [options, setOptions] = useState(emptyOptions);
   const [filters, setFilters] = useState(emptyFilters);
-  const [editingPatient, setEditingPatient] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [refreshCount, setRefreshCount] = useState(0);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
 
-  // Load dropdown choices once when the page first opens.
+  // Load the dropdown options when the app opens.
   useEffect(() => {
     getOptions()
-      .then(setOptions)
-      .catch((loadError) => setError(getErrorMessage(loadError)));
+      .then((data) => setOptions(data))
+      .catch(() => setMessage("Could not load dropdown options."));
   }, []);
 
-  // Reload patients when a filter changes or after a create/edit/delete action.
+  // Load patients when filters change or after a patient is saved/deleted.
   useEffect(() => {
-    const timer = setTimeout(() => {
+    async function loadPatients() {
       setLoading(true);
-      getPatients(filters)
-        .then(setPatients)
-        .catch((loadError) => setError(getErrorMessage(loadError)))
-        .finally(() => setLoading(false));
-    }, 250);
+      try {
+        const data = await getPatients(filters);
+        setPatients(data);
+      } catch {
+        setMessage("Could not load patients. Check that Django is running.");
+      }
+      setLoading(false);
+    }
 
-    return () => clearTimeout(timer);
-  }, [filters, refreshCount]);
+    loadPatients();
+  }, [filters, reload]);
 
-  function changeFilter(field, value) {
-    setFilters((current) => ({ ...current, [field]: value }));
+  function changeForm(field, value) {
+    setForm({ ...form, [field]: value });
+    setErrors({ ...errors, [field]: "" });
   }
 
-  async function handleSave(patientData) {
-    try {
-      await savePatient(editingPatient?.id, patientData);
-      setEditingPatient(null);
-      setNotice(editingPatient ? "Patient record updated." : "Patient added successfully.");
-      setError("");
-      setRefreshCount((count) => count + 1);
-    } catch (saveError) {
-      throw saveError;
+  function changeFilter(field, value) {
+    if (field === "clear") {
+      setFilters({ ...emptyFilters });
+    } else {
+      setFilters({ ...filters, [field]: value });
     }
   }
 
-  async function handleDelete(patient) {
-    const confirmed = window.confirm(`Delete ${patient.name}'s patient record?`);
-    if (!confirmed) return;
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    const formErrors = validatePatient(form);
+    setErrors(formErrors);
+    if (Object.keys(formErrors).length > 0) return;
+
+    const patient = { ...form, age: Number(form.age), name: form.name.trim() };
+
+    try {
+      await savePatient(editingId, patient);
+      setMessage(editingId ? "Patient updated." : "Patient added.");
+      setForm({ ...emptyForm });
+      setEditingId(null);
+      setErrors({});
+      setReload(reload + 1);
+    } catch (serverErrors) {
+      setErrors(serverErrors);
+      setMessage("Please check the highlighted form fields.");
+    }
+  }
+
+  function editPatient(patient) {
+    setForm({
+      name: patient.name,
+      age: String(patient.age),
+      gender: patient.gender,
+      ward: patient.ward,
+      department: patient.department,
+      doctor: patient.doctor,
+      admission_date: patient.admission_date,
+      status: patient.status,
+    });
+    setEditingId(patient.id);
+    setErrors({});
+  }
+
+  function cancelEdit() {
+    setForm({ ...emptyForm });
+    setEditingId(null);
+    setErrors({});
+  }
+
+  async function removePatient(patient) {
+    if (!window.confirm(`Delete ${patient.name}?`)) return;
 
     try {
       await deletePatient(patient.id);
-      setNotice("Patient record deleted.");
-      setRefreshCount((count) => count + 1);
-    } catch (deleteError) {
-      setError(getErrorMessage(deleteError));
+      setMessage("Patient deleted.");
+      setReload(reload + 1);
+    } catch {
+      setMessage("Could not delete this patient.");
     }
   }
 
-  async function handleDischarge(patient) {
-    const confirmed = window.confirm(`Mark ${patient.name} as discharged?`);
-    if (!confirmed) return;
+  async function markDischarged(patient) {
+    if (!window.confirm(`Mark ${patient.name} as discharged?`)) return;
 
     try {
       await dischargePatient(patient.id);
-      setNotice(`${patient.name} marked as discharged.`);
-      setRefreshCount((count) => count + 1);
-    } catch (dischargeError) {
-      setError(getErrorMessage(dischargeError));
+      setMessage("Patient marked as discharged.");
+      setReload(reload + 1);
+    } catch {
+      setMessage("Could not update this patient.");
     }
   }
 
-  function handleEdit(patient) {
-    setNotice("");
-    setEditingPatient(patient);
-    document.getElementById("patient-form")?.scrollIntoView({ behavior: "smooth" });
-  }
-
-  const admittedCount = patients.filter((patient) => patient.status === "Admitted").length;
-  const dischargedCount = patients.filter((patient) => patient.status === "Discharged").length;
-
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="#top" aria-label="CareDesk home">
-          <span className="brand-mark"><Activity size={21} /></span>
-          <span>care<span className="brand-light">desk</span></span>
-        </a>
-        <div className="side-label">WORKSPACE</div>
-        <a className="nav-item active" href="#patients"><Users size={18} /> Patient records</a>
-        <div className="sidebar-note">
-          <div className="note-icon"><Activity size={17} /></div>
-          <strong>Care starts with clarity.</strong>
-          <p>Keep every admission organized and up to date.</p>
-        </div>
-        <div className="sidebar-footer"><span className="online-dot" /> Patient management</div>
-      </aside>
+    <main className="container">
+      <header className="page-header">
+        <h1>Patient Admissions</h1>
+        <p>Add and manage admitted patients.</p>
+      </header>
 
-      <main className="main" id="top">
-        <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> <b>Patient records</b></div>
-          <div className="topbar-right"><span className="today-label">Admissions overview</span><span className="avatar">H</span></div>
-        </header>
+      {message && <p className="message">{message}</p>}
 
-        <div className="content">
-          <section className="page-heading">
-            <div>
-              <div className="eyebrow">HOSPITAL OPERATIONS</div>
-              <h1>Patient admissions</h1>
-              <p className="subtitle">A clear view of every patient in your care.</p>
-            </div>
-            <a className="button button-primary heading-button" href="#patient-form" onClick={() => setEditingPatient(null)}>
-              <CirclePlus size={17} /> Add patient
-            </a>
-          </section>
+      <PatientForm
+        form={form}
+        options={options}
+        errors={errors}
+        editing={Boolean(editingId)}
+        onChange={changeForm}
+        onSubmit={handleSubmit}
+        onCancel={cancelEdit}
+      />
 
-          {error && <div className="alert alert-error" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss"><X size={16} /></button></div>}
-          {notice && <div className="alert alert-success" role="status">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X size={16} /></button></div>}
-
-          <section className="stat-grid" aria-label="Patient summary">
-            <article className="stat-card"><div className="stat-icon icon-blue"><Users size={19} /></div><div className="stat-label">Patients shown</div><div className="stat-value">{loading ? "—" : patients.length}</div><div className="stat-foot">Matching your current view</div></article>
-            <article className="stat-card"><div className="stat-icon icon-green"><Activity size={19} /></div><div className="stat-label">Currently admitted</div><div className="stat-value">{loading ? "—" : admittedCount}</div><div className="stat-foot">In the current results</div></article>
-            <article className="stat-card"><div className="stat-icon icon-amber"><Bed size={19} /></div><div className="stat-label">Discharged</div><div className="stat-value">{loading ? "—" : dischargedCount}</div><div className="stat-foot">In the current results</div></article>
-          </section>
-
-          <PatientForm
-            key={editingPatient?.id || "new-patient"}
-            patient={editingPatient}
-            options={options}
-            onSave={handleSave}
-            onCancel={() => setEditingPatient(null)}
-          />
-
-          <PatientTable
-            patients={patients}
-            filters={filters}
-            options={options}
-            loading={loading}
-            onFilterChange={changeFilter}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onDischarge={handleDischarge}
-          />
-
-          <footer className="page-footer">CareDesk <span>·</span> Patient admission management</footer>
-        </div>
-      </main>
-    </div>
+      <PatientTable
+        patients={patients}
+        filters={filters}
+        options={options}
+        loading={loading}
+        onFilterChange={changeFilter}
+        onEdit={editPatient}
+        onDelete={removePatient}
+        onDischarge={markDischarged}
+      />
+    </main>
   );
 }
+
+export default App;

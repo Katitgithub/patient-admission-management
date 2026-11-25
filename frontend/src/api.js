@@ -1,20 +1,21 @@
-// Keep all communication with the Django server in this file.
-const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+// This file is the only place that talks to the Django server.
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...options.headers,
-    },
-  });
+async function request(path, method = "GET", data = null) {
+  const options = { method };
+
+  if (data !== null) {
+    options.headers = { "Content-Type": "application/json" };
+    options.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(`${API_URL}${path}`, options);
 
   if (response.status === 204) return null;
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw data;
-  return data;
+  const result = await response.json();
+  if (!response.ok) throw result;
+  return result;
 }
 
 export function getOptions() {
@@ -23,31 +24,27 @@ export function getOptions() {
 
 export function getPatients(filters) {
   const query = new URLSearchParams();
-  if (filters.search.trim()) query.set("search", filters.search.trim());
 
-  ["ward", "department", "doctor"].forEach((field) => {
-    if (filters[field]) query.set(field, filters[field]);
-  });
+  if (filters.search) query.set("search", filters.search);
+  if (filters.ward) query.set("ward", filters.ward);
+  if (filters.department) query.set("department", filters.department);
+  if (filters.doctor) query.set("doctor", filters.doctor);
 
   return request(`/api/patients/?${query.toString()}`);
 }
 
-export function savePatient(patientId, patientData) {
-  const url = patientId
-    ? `/api/patients/${patientId}/`
-    : "/api/patients/";
-  const method = patientId ? "PUT" : "POST";
+export function savePatient(id, patient) {
+  if (id) {
+    return request(`/api/patients/${id}/`, "PUT", patient);
+  }
 
-  return request(url, { method, body: JSON.stringify(patientData) });
+  return request("/api/patients/", "POST", patient);
 }
 
-export function dischargePatient(patientId) {
-  return request(`/api/patients/${patientId}/`, {
-    method: "PATCH",
-    body: JSON.stringify({ status: "Discharged" }),
-  });
+export function dischargePatient(id) {
+  return request(`/api/patients/${id}/`, "PATCH", { status: "Discharged" });
 }
 
-export function deletePatient(patientId) {
-  return request(`/api/patients/${patientId}/`, { method: "DELETE" });
+export function deletePatient(id) {
+  return request(`/api/patients/${id}/`, "DELETE");
 }

@@ -22,6 +22,7 @@ DOCTOR_CHOICES = [
 
 
 class Patient(models.Model):
+    # These are the only gender and status values the app accepts.
     class Gender(models.TextChoices):
         FEMALE = "Female", "Female"
         MALE = "Male", "Male"
@@ -32,13 +33,19 @@ class Patient(models.Model):
         DISCHARGED = "Discharged", "Discharged"
 
     name = models.CharField(max_length=100)
-    age = models.PositiveSmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(120)])
+    age = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(120)]
+    )
     gender = models.CharField(max_length=10, choices=Gender.choices)
     ward = models.CharField(max_length=80, choices=WARD_CHOICES)
     department = models.CharField(max_length=80, choices=DEPARTMENT_CHOICES)
     doctor = models.CharField(max_length=100, choices=DOCTOR_CHOICES)
     admission_date = models.DateField()
-    status = models.CharField(max_length=12, choices=Status.choices, default=Status.ADMITTED)
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.ADMITTED,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
